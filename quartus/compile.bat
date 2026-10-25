@@ -43,7 +43,6 @@ if not "%ERR%"=="0" (
     echo =========================================
     echo COMPILATION FAILED - error code %ERR%
     echo =========================================
-    echo Send the last error lines to ChatGPT.
     pause
     exit /b %ERR%
 )
