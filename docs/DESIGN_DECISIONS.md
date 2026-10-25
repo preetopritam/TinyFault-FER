@@ -14,10 +14,9 @@ The RTL datapath uses signed INT8 activations and weights, producing a signed 16
 
 ## Why I used 100 samples
 
-The fault campaign used 100 correctly classified INT8 test samples selected without replacement. This kept the RTL campaign manageable while still allowing every output neuron and every accumulator bit to be tested for each selected input.
+The fault campaign used 100 correctly classified INT8 samples drawn without replacement from the provided test split. For each selected sample, faults were injected into all seven output neurons and all 32 accumulator bits, giving 224 fault scenarios per sample and 22,400 injections in total.
 
-This is an exploratory campaign, not a statistical estimate of hardware reliability over the complete FER2013 test set.
-
+The reported decision-flip rates therefore describe this fixed 100-sample fault campaign. They should not be interpreted as a statistical estimate of hardware reliability over the full test split or over the broader FER2013 population.
 ## Where the fault is injected
 
 For each output neuron, the clean accumulator is first computed over all 32 input features. A transient single-bit fault is then injected into the completed 32-bit accumulator before the final class decision is evaluated.
