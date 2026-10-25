@@ -144,6 +144,8 @@ The experiment uses the **48 × 48 grayscale FER2013 images** and seven emotion 
 
 The **final fully connected classifier** of the deployed INT8 model was selected as the RTL fault-analysis target.
 
+I chose the final classifier because it gives a small, controllable RTL target while still allowing each injected fault to be traced to the final predicted class. Faults in the earlier convolution layers are outside the scope of this experiment.
+
 The analyzed arithmetic path is:
 
 ```text
