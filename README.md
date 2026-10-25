@@ -1,413 +1,219 @@
-<div align="center">
+# TinyFault-FER
 
-<h1>TinyFault-FER</h1>
+**Inference-Aware RTL Fault Injection of a Quantized INT8 Classifier MAC Datapath**
 
-<h3>Inference-Aware RTL Fault Injection of a Quantized INT8 Classifier MAC Datapath</h3>
+TinyFault-FER studies how transient single-bit faults in the signed 32-bit accumulator of a quantized INT8 classifier affect the final predicted class.
 
-<p>
-  <img src="https://img.shields.io/badge/Python-3.x-3776AB?logo=python&logoColor=white">
-  <img src="https://img.shields.io/badge/TensorFlow-TFLite-FF6F00?logo=tensorflow&logoColor=white">
-  <img src="https://img.shields.io/badge/RTL-SystemVerilog-555555">
-  <img src="https://img.shields.io/badge/Simulation-Icarus_Verilog-6A5ACD">
-  <img src="https://img.shields.io/badge/Quartus_II-13.0_SP1-0071C5">
-</p>
+The experiment targets the final fully connected classifier of a compact FER CNN:
 
-<p><strong>22,400 RTL fault injections · Bit-exact RTL verification · 169.55 MHz synthesized datapath</strong></p>
+```text
+32 INT8 input features
+        ↓
+signed INT8 × INT8 multiply
+        ↓
+signed 16-bit product
+        ↓
+signed 32-bit accumulator
+        ↓
+7 output-class scores
+```
 
-</div>
-
----
-
-**TinyFault-FER** studies how transient single-bit faults in the signed 32-bit accumulator of a deployed INT8 classifier propagate to **inference-level classification failures**.
-
-The project connects a quantized neural-network workload to RTL fault injection and FPGA synthesis, allowing arithmetic corruption in the final classifier MAC/accumulator datapath to be evaluated by its effect on the final model decision.
-
-<sub><strong>Keywords:</strong> RTL fault injection · INT8 CNN · quantized neural networks · AI accelerator reliability · FPGA · TinyML · transient bit flips · accumulator vulnerability · TensorFlow Lite · SystemVerilog</sub>
+The RTL campaign evaluates one controlled architectural fault location: the **completed output-neuron accumulator**. It does not model arbitrary cycle-level faults, earlier CNN layers, or physical FPGA fault injection.
 
 ## Experimental Pipeline
 
-<div align="center">
-
-<strong>FER2013 → Compact CNN → Full-INT8 TFLite → Final-Layer MAC/Accumulator → RTL Fault Injection → Inference Vulnerability Analysis → FPGA Synthesis</strong>
-
-<br><br>
-
-<img src="results/pipeline.png" width="1000">
-
-</div>
-
----
-
-## Headline Results
-
-<div align="center">
-
-<table>
-<tr>
-<th align="left">Metric</th>
-<th align="center">Result</th>
-</tr>
-
-<tr>
-<td>FP32 test accuracy</td>
-<td align="center"><b>62.45%</b></td>
-</tr>
-
-<tr>
-<td>Full-INT8 test accuracy</td>
-<td align="center"><b>62.54%</b></td>
-</tr>
-
-<tr>
-<td>Validated inference samples</td>
-<td align="center"><b>100</b></td>
-</tr>
-
-<tr>
-<td>RTL fault injections</td>
-<td align="center"><b>22,400</b></td>
-</tr>
-
-<tr>
-<td>RTL ↔ Python accumulator verification</td>
-<td align="center"><b>Bit-exact</b></td>
-</tr>
-
-<tr>
-<td>Clean reconstruction ↔ TFLite agreement</td>
-<td align="center"><b>100%</b></td>
-</tr>
-
-<tr>
-<td>Overall decision-flip rate</td>
-<td align="center"><b>12.43%</b></td>
-</tr>
-
-<tr>
-<td>Most vulnerable accumulator bit</td>
-<td align="center"><b>Bit 31</b></td>
-</tr>
-
-<tr>
-<td>Bit-31 decision-flip rate</td>
-<td align="center"><b>81.71%</b></td>
-</tr>
-
-<tr>
-<td>Worst-case registered-datapath Fmax</td>
-<td align="center"><b>169.55 MHz</b></td>
-</tr>
-</table>
-
-</div>
-
----
-
-## Methodology
-
-### 1. Quantized CNN Workload
-
-A compact convolutional neural network was trained for **7-class facial-expression recognition** and converted to a **full-integer TensorFlow Lite model**.
-
-- FP32 test accuracy: **62.45%**
-- Full-INT8 test accuracy: **62.54%**
-- INT8–FP32 accuracy difference: **+0.09 percentage points**
-
-The model was intentionally kept compact because the primary objective is **hardware fault analysis**, rather than maximizing facial-expression-recognition accuracy.
-
-The experiment uses the **48 × 48 grayscale FER2013 images** and seven emotion labels exposed by the `abhilash88/fer2013-enhanced` Hugging Face dataset mirror. Additional quality metadata provided by the enhanced dataset was **not used as model input**.
-
-<div align="center">
-
-<table>
-<tr>
-<th>Split</th>
-<th>Samples</th>
-</tr>
-<tr>
-<td>Train</td>
-<td align="center"><b>25,117</b></td>
-</tr>
-<tr>
-<td>Validation</td>
-<td align="center"><b>5,380</b></td>
-</tr>
-<tr>
-<td>Test</td>
-<td align="center"><b>5,390</b></td>
-</tr>
-</table>
-
-</div>
-
-### 2. RTL Datapath
-
-The **final fully connected classifier** of the deployed INT8 model was selected as the RTL fault-analysis target.
-
-I chose the final classifier because it gives a small, controllable RTL target while still allowing each injected fault to be traced to the final predicted class. Faults in the earlier convolution layers are outside the scope of this experiment.
-
-The analyzed arithmetic path is:
-
 ```text
-signed INT8 activation × signed INT8 weight
-                    ↓
-          signed 16-bit product
-                    ↓
-          signed 32-bit accumulator
+FER2013-Enhanced dataset
+        ↓
+Compact CNN
+        ↓
+Full-INT8 TensorFlow Lite model
+        ↓
+Final-layer quantized tensors
+        ↓
+Python integer reconstruction
+        ↓
+SystemVerilog MAC/accumulator
+        ↓
+Single-bit RTL fault campaign
+        ↓
+Reconstructed class-decision analysis
+        ↓
+Quartus synthesis and static timing
 ```
 
-The classifier contains:
+![Experimental pipeline](results/pipeline.png)
+
+## Frozen Results
+
+| Metric | Result |
+|---|---:|
+| FP32 accuracy on the provided test split | 62.45% |
+| Full-INT8 accuracy on the provided test split | 62.54% |
+| Fault-campaign input samples | 100 |
+| Final-layer dimensions | 32 features × 7 outputs |
+| RTL fault injections | 22,400 |
+| Python ↔ RTL clean accumulator agreement | Bit-exact |
+| Clean reconstructed decision ↔ TFLite agreement | 100% |
+| Overall decision-flip rate | 12.43% |
+| Decision-preserving faults | 87.57% |
+| Most vulnerable accumulator bit | Bit 31 |
+| Bit-31 decision-flip rate | 81.71% |
+
+The campaign used 100 correctly classified INT8 samples drawn without replacement from the provided test split. For each selected input, faults were injected into all seven output neurons and all 32 accumulator bits:
+
+```text
+100 samples × 7 neurons × 32 bits = 22,400 fault scenarios
+```
+
+The reported decision-flip rates therefore describe this **fixed 100-sample campaign**. They are not a statistical estimate of hardware reliability over the full test split or the broader FER2013 population.
+
+## Dataset and Model
+
+The notebook uses the public Hugging Face dataset:
+
+```text
+abhilash88/fer2013-enhanced
+```
+
+Only the 48 × 48 grayscale images and seven emotion labels are used as CNN inputs/targets. Additional metadata from the dataset mirror is not used as a model feature.
+
+The provided splits used in the frozen notebook are:
+
+| Split | Samples |
+|---|---:|
+| Train | 25,117 |
+| Validation | 5,380 |
+| Test | 5,390 |
+
+The accuracy values reported in this repository refer specifically to these provided splits. They should not be interpreted as benchmark results on the canonical FER2013 Training/PublicTest/PrivateTest partition.
+
+The trained CNN was converted to a full-INT8 TensorFlow Lite model. The final classifier has:
 
 ```text
 32 input features → 7 output neurons
 ```
 
-Quantized activations, weights, biases, scales, and zero-points were extracted directly from the deployed TFLite model.
+Quantized activations, weights, biases, scales, and zero-points were extracted from the TFLite model. Activation zero-point correction was incorporated into the RTL bias term so that the reconstructed integer accumulator matched the deployed quantized arithmetic.
 
-Activation zero-point correction was incorporated into the RTL bias term to preserve the intended signed integer arithmetic.
+## RTL Datapath
 
-### 3. RTL Verification
-
-The MAC/accumulator was implemented in **SystemVerilog** and simulated using **Icarus Verilog**.
-
-Before fault injection, clean RTL accumulator outputs were compared against the Python integer reference reconstructed from the deployed TFLite tensors.
-
-> **Bit-exact Python ↔ RTL accumulator agreement**
-
-All **100 validated fault-campaign samples** also produced clean reconstructed classifier decisions identical to the corresponding TFLite decisions.
-
-> **Clean reconstruction ↔ TFLite agreement: 100%**
-
-This verification gate ensures that fault propagation is evaluated from integer arithmetic consistent with the deployed quantized classifier.
-
-### 4. Fault-Injection Protocol
-
-A **transient single-bit fault** was injected independently into every position of the signed 32-bit accumulator.
+The simulation RTL is in:
 
 ```text
-100 inference samples
-× 7 output neurons
-× 32 accumulator bits
-= 22,400 RTL fault injections
+rtl/int8_mac_accum.sv
+rtl/tb_fault_campaign.sv
 ```
 
-The 100 fault-campaign samples were selected without replacement from correctly classified INT8 test cases. Each sample contributes **224 deterministic fault scenarios**.
-
-Each injected fault modifies one **completed output-neuron accumulator** before the final classification decision is evaluated.
-
-A fault is defined as **inference-critical** when:
+The MAC datapath implements:
 
 ```text
-faulty predicted class ≠ clean predicted class
+signed INT8 activation × signed INT8 weight
+→ signed 16-bit product
+→ sign extension
+→ signed 32-bit accumulation
 ```
 
-This distinguishes low-level numerical corruption from corruption that propagates into an application-level inference failure.
+The testbench reconstructs each output-neuron accumulator over 32 input features, then flips one selected accumulator bit after accumulation is complete.
 
-> **Scope note:** Statistical uncertainty over a larger independent input population was not evaluated in this exploratory RTL campaign.
+For each selected sample:
 
----
+```text
+7 output neurons × 32 bit positions = 224 faults
+```
+
+The raw RTL campaign writes:
+
+```text
+sample, neuron, bit, clean_acc, faulted_acc
+```
+
+to `reports/rtl_faults.csv`.
+
+## Verification
+
+Before fault analysis, clean RTL accumulator values were compared against a Python integer reconstruction of the final TFLite classifier.
+
+The frozen campaign achieved:
+
+- **bit-exact Python ↔ RTL accumulator agreement**
+- **100% clean reconstructed argmax agreement with TFLite** for the 100 campaign samples
+
+For faulty cases, the modified accumulator is mapped to the reconstructed **pre-output-requantization class score** using the corresponding accumulator scale. The faulty argmax is then compared with the clean reconstructed argmax.
+
+This analysis does **not** separately emulate TFLite's final output requantization and clipping for every faulty accumulator. The reported decision-flip rates therefore apply to the reconstructed final-layer score model used in the frozen campaign.
 
 ## Fault-Injection Results
 
-Across **22,400 RTL fault injections**:
+Across all 22,400 fault scenarios:
 
-- **12.43%** changed the final predicted class.
-- **87.57%** preserved the clean decision.
-- Vulnerability varied strongly with accumulator bit position.
-- **Bit 31** was the most vulnerable accumulator position.
-- Bit-31 corruption produced an **81.71% decision-flip rate**.
+- **2,785** changed the predicted class.
+- **19,615** preserved the clean decision.
+- Overall decision-flip rate: **12.43%**.
+- Bits 0–9 caused no decision changes in this campaign.
+- **Bit 31**, the signed accumulator MSB, was the most vulnerable position.
+- Bit 31 changed the predicted class in **572 / 700 cases = 81.71%**.
 
-### Accumulator-Bit Vulnerability
+![Accumulator-bit vulnerability](results/accumulator_bit_vulnerability.png)
 
-<div align="center">
-<img src="results/accumulator_bit_vulnerability.png" width="850">
-</div>
+![Fault outcome distribution](results/fault_outcome_distribution.png)
 
-The results show substantial **fault-significance asymmetry**: corruption of numerically significant accumulator positions is considerably more likely to propagate into a classification failure.
+Vulnerability also varied across final-layer output neurons:
 
-Bit 31 is the **sign bit** of the signed 32-bit two's-complement accumulator. Toggling this bit changes the represented accumulator value by \(2^{31}\) in magnitude, making it qualitatively different from lower-order bit perturbations.
+| Output class | Decision-flip rate |
+|---|---:|
+| Angry | 8.91% |
+| Disgust | 4.09% |
+| Fear | 20.91% |
+| Happy | 6.44% |
+| Sad | 18.06% |
+| Surprise | 6.63% |
+| Neutral | 22.00% |
 
-Its high vulnerability is therefore partly expected from numerical significance. The empirical result of interest is that **81.71% of tested bit-31 corruptions propagated through the competing class scores strongly enough to change the final argmax decision**.
+![Output-neuron vulnerability](results/output_neuron_vulnerability.png)
 
-### Fault Outcome Distribution
+These results show that numerical corruption and inference failure are not equivalent: many accumulator faults were masked at the final class decision, while high-significance bits were substantially more likely to alter the argmax.
 
-<div align="center">
-<img src="results/fault_outcome_distribution.png" width="650">
-</div>
+## Quartus Synthesis
 
-Most injected arithmetic faults were masked at the inference level: **87.57%** preserved the original predicted class despite corruption of an accumulator value.
+A registered wrapper around the same signed INT8 MAC datapath was synthesized using **Quartus II 13.0 SP1** for:
 
-### Output-Neuron Vulnerability
+```text
+Altera Cyclone IV E EP4CE22F17C6
+```
 
-<div align="center">
-<img src="results/output_neuron_vulnerability.png" width="850">
-</div>
+The synthesis target is a **single registered MAC datapath**, not the complete CNN, seven-neuron classifier, or fault-injection testbench.
 
-The campaign also evaluates how vulnerability varies across the seven final-layer output neurons.
+| Metric | Result |
+|---|---:|
+| Logic elements | 64 |
+| Registers | 64 |
+| Embedded multiplier resources | 1 |
+| Memory bits | 0 |
+| PLLs | 0 |
+| Clock constraint | 100 MHz |
+| Worst-case setup slack | +4.102 ns |
+| Worst-case hold slack | +0.920 ns |
+| Registered-datapath Fmax | 169.55 MHz |
 
-> **Numerical corruption and inference failure are not equivalent.**
+The reported timing comes from static timing analysis. External board-level I/O timing was not modeled, and **no physical FPGA deployment or physical fault injection was performed**.
 
-A reliability analysis limited to low-level arithmetic corruption can therefore overestimate the application-level impact of many faults while failing to distinguish the accumulator positions most likely to change the model decision.
+Quartus evidence is retained in:
 
----
+```text
+reports/quartus_resource_summary.txt
+reports/tinyfault_mac.fit.summary
+reports/tinyfault_mac.sta.rpt
+```
 
-## FPGA Synthesis
-
-The registered MAC datapath was synthesized using **Quartus II 13.0 SP1 (64-bit)** targeting an **Altera Cyclone IV E EP4CE22F17C6**.
-
-<div align="center">
-
-<table>
-<tr>
-<th align="left">Resource / Timing Metric</th>
-<th align="center">Result</th>
-</tr>
-
-<tr>
-<td>Logic elements</td>
-<td align="center"><b>64</b></td>
-</tr>
-
-<tr>
-<td>Registers</td>
-<td align="center"><b>64</b></td>
-</tr>
-
-<tr>
-<td>Embedded multiplier resources</td>
-<td align="center"><b>1</b></td>
-</tr>
-
-<tr>
-<td>Memory bits</td>
-<td align="center"><b>0</b></td>
-</tr>
-
-<tr>
-<td>PLLs</td>
-<td align="center"><b>0</b></td>
-</tr>
-
-<tr>
-<td>Clock constraint</td>
-<td align="center"><b>100 MHz</b></td>
-</tr>
-
-<tr>
-<td>Worst-case setup slack</td>
-<td align="center"><b>+4.102 ns</b></td>
-</tr>
-
-<tr>
-<td>Worst-case hold slack</td>
-<td align="center"><b>+0.920 ns</b></td>
-</tr>
-
-<tr>
-<td>Worst-case registered-datapath Fmax</td>
-<td align="center"><b>169.55 MHz</b></td>
-</tr>
-</table>
-
-</div>
-
-Quartus inferred the signed `INT8 × INT8` multiplication as an embedded multiplier resource.
-
-The reported **169.55 MHz Fmax** corresponds to static timing analysis of the **registered MAC datapath**.
-
-External board-level I/O timing was not modeled, and no physical FPGA deployment was performed.
-
----
-
-## Experimental Scope
-
-<div align="center">
-
-<table>
-<tr>
-<th align="left">Component</th>
-<th align="center">Scope</th>
-</tr>
-
-<tr>
-<td>CNN execution</td>
-<td align="center">TensorFlow / TensorFlow Lite</td>
-</tr>
-
-<tr>
-<td>Quantization</td>
-<td align="center">Full INT8</td>
-</tr>
-
-<tr>
-<td>Classifier dimensions</td>
-<td align="center">32 features → 7 outputs</td>
-</tr>
-
-<tr>
-<td>RTL fault target</td>
-<td align="center">Final-layer MAC / 32-bit accumulator</td>
-</tr>
-
-<tr>
-<td>RTL simulator</td>
-<td align="center">Icarus Verilog</td>
-</tr>
-
-<tr>
-<td>Fault model</td>
-<td align="center">Transient single-bit accumulator flip</td>
-</tr>
-
-<tr>
-<td>Injection point</td>
-<td align="center">Completed output-neuron accumulator</td>
-</tr>
-
-<tr>
-<td>Fault positions</td>
-<td align="center">Bits 0–31</td>
-</tr>
-
-<tr>
-<td>Validated inference samples</td>
-<td align="center">100</td>
-</tr>
-
-<tr>
-<td>Total fault injections</td>
-<td align="center">22,400</td>
-</tr>
-
-<tr>
-<td>FPGA analysis</td>
-<td align="center">Quartus II synthesis + static timing</td>
-</tr>
-
-<tr>
-<td>Physical FPGA deployment</td>
-<td align="center">Not performed</td>
-</tr>
-</table>
-
-</div>
-
-TinyFault-FER evaluates a **representative quantized classifier arithmetic datapath**, rather than claiming a complete CNN RTL implementation.
-
-RTL simulation provides deterministic and repeatable control over fault location while allowing all 32 accumulator positions to be evaluated across thousands of inference scenarios.
-
----
-
-## Reproducibility
-
-### Repository Structure
+## Repository Structure
 
 ```text
 TinyFault-FER/
 ├── README.md
 ├── LICENSE
-├── .gitignore
 ├── CITATION.cff
+├── .gitignore
 │
 ├── notebooks/
 │   └── TinyFault_FER_Colab.ipynb
@@ -424,37 +230,42 @@ TinyFault-FER/
 │   ├── tinyfault_mac.sdc
 │   └── compile.bat
 │
+├── reports/
+│   ├── rtl_faults.csv
+│   ├── rtl_summary.json
+│   ├── bit_vulnerability_summary.csv
+│   ├── fault_outcome_summary.csv
+│   ├── output_neuron_vulnerability_summary.csv
+│   ├── quartus_resource_summary.txt
+│   ├── tinyfault_mac.fit.summary
+│   └── tinyfault_mac.sta.rpt
+│
 ├── results/
 │   ├── pipeline.png
 │   ├── accumulator_bit_vulnerability.png
 │   ├── fault_outcome_distribution.png
 │   └── output_neuron_vulnerability.png
 │
-└── reports/
-    ├── rtl_summary.json
-    ├── rtl_faults.csv
-    └── quartus_resource_summary.txt
+└── docs/
+    └── DESIGN_DECISIONS.md
 ```
 
-### Notebook Workflow
+## Reproducibility
 
-The Colab notebook implements the experimental pipeline:
+The notebook records the frozen end-to-end workflow used to:
 
-1. load the FER2013 workload,
-2. train the compact CNN,
-3. convert the model to full INT8 TFLite,
-4. evaluate FP32 and INT8 accuracy,
-5. extract deployed final-layer quantized tensors,
-6. reconstruct clean integer accumulators,
-7. generate RTL test vectors,
-8. execute the Icarus Verilog fault campaign,
-9. verify Python ↔ RTL arithmetic,
-10. propagate faulty accumulators to inference decisions,
-11. generate vulnerability summaries and figures.
+1. load the dataset,
+2. train the CNN,
+3. convert it to full INT8 TFLite,
+4. extract final-layer quantized tensors,
+5. reconstruct clean integer accumulators,
+6. generate RTL memory vectors,
+7. run the Icarus Verilog fault campaign,
+8. verify clean RTL arithmetic,
+9. map faulty accumulators to reconstructed class decisions,
+10. generate vulnerability summaries.
 
-### RTL Simulation
-
-The notebook generates the RTL memory vectors required by the testbench:
+The RTL testbench expects:
 
 ```text
 activations.mem
@@ -462,97 +273,39 @@ weights.mem
 biases.mem
 ```
 
-With those generated files present alongside the RTL sources, the campaign is compiled and executed with:
+These files are generated by the notebook and are **not stored as frozen campaign inputs in the repository**. The exact frozen `.tflite`, seed `.npz`, and generated `.mem` files are also not committed.
 
-```bash
-iverilog -g2012 -Wall \
-    -o fault_campaign.vvp \
-    int8_mac_accum.sv \
-    tb_fault_campaign.sv
+Therefore:
 
-vvp fault_campaign.vvp
-```
+- the repository preserves the frozen notebook, raw RTL fault output, result summaries, figures, RTL sources, and Quartus evidence;
+- the experimental workflow can be inspected and rerun;
+- but the exact frozen campaign cannot be replayed byte-for-byte from the committed files alone without regenerating the model-dependent artifacts.
 
-Raw injection-level RTL output from the frozen campaign is provided in:
+Re-running the training/conversion pipeline may produce a different trained model and therefore should not be treated as reproduction of the exact frozen numerical campaign.
 
-```text
-reports/rtl_faults.csv
-```
+## Scope and Limitations
 
-Frozen campaign summary:
+TinyFault-FER is intentionally limited to one final-layer classifier datapath.
 
-```text
-reports/rtl_summary.json
-```
+It does not evaluate:
 
-### Quartus Synthesis
+- faults in convolution layers;
+- faults injected at arbitrary MAC cycles;
+- register, control-path, memory, or interconnect faults;
+- permanent or multi-bit faults;
+- full accelerator RTL;
+- physical FPGA fault injection;
+- population-level hardware reliability;
+- exact TFLite post-requantization behavior for every faulty accumulator.
 
-**Tool:** Quartus II 13.0 SP1 (64-bit)  
-**Target:** Altera Cyclone IV E EP4CE22F17C6
+A natural extension is to study fault propagation across earlier layers or processing elements and then compare protection strategies using inference impact, fault coverage, latency, and hardware overhead.
 
-```bash
-quartus_sh --flow compile tinyfault_mac
-```
+## Reference
 
-Synthesis and timing summary:
+I. J. Goodfellow et al., “Challenges in Representation Learning: A Report on Three Machine Learning Contests,” *Neural Networks*, vol. 64, pp. 59–63, 2015.
 
-```text
-reports/quartus_resource_summary.txt
-```
+## Author
 
----
+**Pritam Kumar Das**
 
-## Dataset and References
-
-### Dataset
-
-[FER2013 Enhanced — Hugging Face](https://huggingface.co/datasets/abhilash88/fer2013-enhanced)
-
-Dataset identifier:
-
-```text
-abhilash88/fer2013-enhanced
-```
-
-Only the FER2013 **48 × 48 grayscale images** and **seven expression labels** were used for the CNN workload. Additional metadata supplied by the enhanced mirror was not used as a model feature.
-
-```text
-Train        25,117
-Validation    5,380
-Test          5,390
-```
-
-### Original FER2013 Reference
-
-I. J. Goodfellow et al.,  
-**“Challenges in Representation Learning: A Report on Three Machine Learning Contests,”**  
-*Neural Networks*, vol. 64, pp. 59–63, 2015.  
-[DOI: 10.1016/j.neunet.2014.09.005](https://doi.org/10.1016/j.neunet.2014.09.005)
-
-The publication describes the ICML 2013 representation-learning contests, including the facial-expression-recognition challenge associated with FER2013.
-
----
-
-## Key Takeaway
-
-<div align="center">
-
-<h3>Hardware faults are not equally important at the inference level.</h3>
-
-<p><strong>22,400 faults → 12.43% decision changes</strong></p>
-
-<p><strong>Bit 31 → 81.71% decision-flip rate</strong></p>
-
-</div>
-
-Most accumulator corruptions in the evaluated campaign did **not** change the CNN decision, whereas faults in high-significance positions—particularly the signed most-significant bit—frequently propagated to classification failures.
-
-TinyFault-FER therefore demonstrates the value of **inference-aware vulnerability analysis** alongside conventional low-level fault characterization for reliable quantized AI accelerator datapaths.
-
----
-
-## Researcher
-
-**Pritam K Das**  
-Email: [preeto.pritam@gmail.com](mailto:preeto.pritam@gmail.com)  
-Google Scholar: [Pritam K Das](https://scholar.google.com/citations?hl=en&user=nZ0Ys7EAAAAJ)
+Google Scholar: https://scholar.google.com/citations?hl=en&user=nZ0Ys7EAAAAJ
