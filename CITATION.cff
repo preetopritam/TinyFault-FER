@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use TinyFault-FER in your research, please cite this repository."
-title: "TinyFault-FER: Inference-Aware RTL Fault Injection of an INT8 CNN Accelerator Datapath"
+title: "TinyFault-FER: Inference-Aware RTL Fault Injection of a Quantized INT8 Classifier MAC Datapath"
 type: software
 
 authors:
