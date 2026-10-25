@@ -1,6 +1,6 @@
 module tb_fault_campaign;
 
-    localparam integer N_SAMPLES  = 98;
+    localparam integer N_SAMPLES  = 100;
     localparam integer N_CLASSES  = 7;
     localparam integer N_FEATURES = 32;
 
